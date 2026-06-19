@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>RESCUE AI — Tactical Radio Intelligence</title>
+<meta name="description" content="RESCUE AI cleans, transcribes, and analyzes emergency radio transmissions in real time — fully local, off-grid capable." />
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;900&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --bg:        #0a0d0c;
+    --panel:     #111613;
+    --panel-2:   #161d19;
+    --line:      #232b27;
+    --text-hi:   #e9efe9;
+    --text-lo:   #93a89b;
+    --text-dim:  #5e716a;
+    --flare:     #ff6a3d;
+    --flare-dim: #b54f30;
+    --signal:    #5fe3a3;
+    --signal-dim:#2e6b50;
+
+    --display: 'Big Shoulders Display', sans-serif;
+    --body: 'Inter', sans-serif;
+    --mono: 'IBM Plex Mono', monospace;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+  html{scroll-behavior:smooth;}
+
+  body{
+    background:var(--bg);
+    color:var(--text-lo);
+    font-family:var(--body);
+    line-height:1.6;
+    overflow-x:hidden;
+    background-image:
+      radial-gradient(ellipse 900px 500px at 15% -5%, rgba(95,227,163,0.06), transparent),
+      radial-gradient(ellipse 700px 500px at 100% 20%, rgba(255,106,61,0.05), transparent);
+  }
+
+  /* scanline texture, very subtle */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background:repeating-linear-gradient(
+      to bottom, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px
+    );
+    pointer-events:none;
+    z-index:999;
+    mix-blend-mode:overlay;
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; animation-iteration-count:1 !important; transition-duration:0.001ms !important; scroll-behavior:auto !important;}
+  }
+
+  a{color:inherit;}
+  ::selection{background:var(--flare); color:#0a0d0c;}
+
+  :focus-visible{
+    outline:2px solid var(--signal);
+    outline-offset:3px;
+    border-radius:2px;
+  }
+
+  .wrap{max-width:1180px; margin:0 auto; padding:0 32px;}
+
+  .eyebrow{
+    font-family:var(--mono);
+    font-size:11.5px;
+    letter-spacing:0.18em;
+    text-transform:uppercase;
+    color:var(--text-dim);
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .eyebrow .dot{
+    width:6px;height:6px;border-radius:50%;
+    background:var(--signal);
+    box-shadow:0 0 0 0 rgba(95,227,163,0.6);
+    animation:pulseDot 2.4s ease-out infinite;
+    flex-shrink:0;
+  }
+  @keyframes pulseDot{
+    0%{box-shadow:0 0 0 0 rgba(95,227,163,0.55);}
+    70%{box-shadow:0 0 0 7px rgba(95,227,163,0);}
+    100%{box-shadow:0 0 0 0 rgba(95,227,163,0);}
+  }
+
+  /* ===== NAV ===== */
+  header{
+    position:fixed; top:0; left:0; right:0; z-index:100;
+    backdrop-filter:blur(10px);
+    background:rgba(10,13,12,0.72);
+    border-bottom:1px solid var(--line);
+  }
+  nav{
+    max-width:1180px; margin:0 auto; padding:16px 32px;
+    display:flex; align-items:center; justify-content:space-between;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    font-family:var(--display); font-weight:800;
+    font-size:19px; letter-spacing:0.02em;
+    color:var(--text-hi);
+    text-decoration:none;
+  }
+  .brand-mark{
+    width:9px; height:18px;
+    background:linear-gradient(180deg, var(--signal), var(--flare));
+    border-radius:1px;
+    flex-shrink:0;
+  }
+  .navlinks{display:flex; gap:30px; align-items:center;}
+  .navlinks a{
+    font-family:var(--mono); font-size:12.5px; letter-spacing:0.04em;
+    color:var(--text-lo); text-decoration:none;
+    position:relative; padding:4px 0;
+    transition:color 0.2s ease;
+  }
+  .navlinks a::after{
+    content:""; position:absolute; left:0; right:100%; bottom:0; height:1px;
+    background:var(--signal); transition:right 0.25s ease;
+  }
+  .navlinks a:hover{color:var(--text-hi);}
+  .navlinks a:hover::after{right:0;}
+  .nav-cta{
+    font-family:var(--mono); font-size:12px; font-weight:500;
+    padding:9px 16px; border:1px solid var(--line);
+    border-radius:5px; text-decoration:none;
+    color:var(--text-hi); letter-spacing:0.03em;
+    transition:border-color 0.2s ease, background 0.2s ease, transform 0.15s ease;
+    display:flex; align-items:center; gap:7px;
+  }
+  .nav-cta:hover{border-color:var(--signal); background:rgba(95,227,163,0.06); transform:translateY(-1px);}
+
+  /* ===== HERO ===== */
+  .hero{
+    padding:168px 0 90px;
+    position:relative;
+  }
+  .hero-grid{
+    display:grid;
+    grid-template-columns:1.1fr 0.9fr;
+    gap:64px;
+    align-items:center;
+  }
+  .hero h1{
+    font-family:var(--display);
+    font-weight:900;
+    font-size:clamp(46px, 6.4vw, 84px);
+    line-height:0.96;
+    letter-spacing:-0.01em;
+    color:var(--text-hi);
+    margin:20px 0 22px;
+    text-transform:uppercase;
+  }
+  .hero h1 .accent{
+    color:var(--flare);
+    position:relative;
+  }
+  .hero p.lede{
+    font-size:17px;
+    color:var(--text-lo);
+    max-width:480px;
+    margin-bottom:34px;
+  }
+  .hero p.lede strong{color:var(--text-hi); font-weight:600;}
+
+  .hero-ctas{display:flex; gap:14px; flex-wrap:wrap; margin-bottom:42px;}
+  .btn{
+    font-family:var(--mono); font-size:13px; font-weight:500;
+    letter-spacing:0.03em;
+    padding:13px 22px;
+    border-radius:6px;
+    text-decoration:none;
+    display:inline-flex; align-items:center; gap:9px;
+    transition:transform 0.18s ease, box-shadow 0.18s ease, background 0.18s ease, border-color .18s ease;
+  }
+  .btn-primary{
+    background:var(--flare);
+    color:#0a0d0c;
+    border:1px solid var(--flare);
+  }
+  .btn-primary:hover{
+    transform:translateY(-2px);
+    box-shadow:0 10px 30px -8px rgba(255,106,61,0.55);
+  }
+  .btn-ghost{
+    background:transparent;
+    color:var(--text-hi);
+    border:1px solid var(--line);
+  }
+  .btn-ghost:hover{
+    border-color:var(--signal);
+    background:rgba(95,227,163,0.05);
+    transform:translateY(-2px);
+  }
+
+  .hero-stats{
+    display:flex; gap:30px; flex-wrap:wrap;
+  }
+  .stat{font-family:var(--mono);}
+  .stat .num{font-size:13px; color:var(--signal); font-weight:600;}
+  .stat .lbl{font-size:11px; color:var(--text-dim); letter-spacing:0.04em; text-transform:uppercase;}
+
+  /* ----- signal console (signature element) ----- */
+  .console{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+    box-shadow:0 30px 70px -30px rgba(0,0,0,0.7);
+  }
+  .console-top{
+    display:flex; align-items:center; justify-content:space-between;
+    padding:13px 16px;
+    border-bottom:1px solid var(--line);
+    background:var(--panel-2);
+  }
+  .console-top .lights{display:flex; gap:6px;}
+  .console-top .lights span{width:8px; height:8px; border-radius:50%; background:var(--line);}
+  .console-top .lights span:nth-child(1){background:var(--flare);}
+  .console-label{font-family:var(--mono); font-size:11px; color:var(--text-dim); letter-spacing:0.06em;}
+
+  .console-body{padding:20px 18px 16px;}
+  .console-row{
+    display:flex; align-items:center; justify-content:space-between;
+    margin-bottom:8px;
+  }
+  .console-row .tag{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.05em;
+    text-transform:uppercase; color:var(--text-dim);
+  }
+  .console-row .tag.live{color:var(--flare);}
+
+  .wave-svg{display:block; width:100%; height:64px;}
+  .wave-noisy{stroke:var(--flare-dim);}
+  .wave-clean{stroke:var(--signal);}
+
+  .console-divider{height:1px; background:var(--line); margin:14px 0;}
+
+  .transcript-line{
+    font-family:var(--mono); font-size:12.5px;
+    color:var(--text-lo);
+    display:flex; gap:10px;
+    margin-bottom:9px;
+    opacity:0;
+    animation:typeIn 0.5s ease forwards;
+  }
+  .transcript-line .who{color:var(--signal); flex-shrink:0; width:64px;}
+  .transcript-line.alert .who{color:var(--flare);}
+  .transcript-line .cursor{
+    display:inline-block; width:6px; height:13px; background:var(--signal);
+    animation:blink 1s steps(1) infinite; vertical-align:middle; margin-left:2px;
+  }
+  @keyframes typeIn{to{opacity:1;}}
+  @keyframes blink{50%{opacity:0;}}
+
+  .console-tags{display:flex; gap:8px; flex-wrap:wrap; margin-top:14px;}
+  .pill{
+    font-family:var(--mono); font-size:10.5px;
+    padding:5px 10px; border-radius:20px;
+    border:1px solid var(--line);
+    color:var(--text-lo);
+    opacity:0;
+    animation:popIn 0.4s ease forwards;
+  }
+  .pill.danger{border-color:var(--flare-dim); color:#ffab8c;}
+  .pill.ok{border-color:var(--signal-dim); color:#9fe9c4;}
+  @keyframes popIn{from{opacity:0; transform:scale(0.85);} to{opacity:1; transform:scale(1);}}
+
+  /* ===== SECTION SHARED ===== */
+  section{padding:108px 0;}
+  .section-head{
+    margin-bottom:54px;
+    max-width:640px;
+  }
+  .section-head h2{
+    font-family:var(--display);
+    font-weight:800;
+    font-size:clamp(30px, 4vw, 42px);
+    color:var(--text-hi);
+    text-transform:uppercase;
+    letter-spacing:-0.01em;
+    margin:14px 0 14px;
+    line-height:1.04;
+  }
+  .section-head p{font-size:15.5px; color:var(--text-lo); max-width:520px;}
+
+  .reveal{
+    opacity:0; transform:translateY(22px);
+    transition:opacity 0.7s cubic-bezier(.2,.7,.2,1), transform 0.7s cubic-bezier(.2,.7,.2,1);
+  }
+  .reveal.in{opacity:1; transform:translateY(0);}
+
+  /* ===== PIPELINE ===== */
+  .pipeline{
+    border-left:1px solid var(--line);
+    margin-left:6px;
+  }
+  .stage{
+    position:relative;
+    padding:0 0 48px 38px;
+  }
+  .stage:last-child{padding-bottom:0;}
+  .stage-num{
+    position:absolute; left:-7px; top:0;
+    width:13px; height:13px;
+    border-radius:50%;
+    background:var(--bg);
+    border:2px solid var(--signal-dim);
+    transition:border-color 0.4s ease, box-shadow 0.4s ease;
+  }
+  .stage.in .stage-num{
+    border-color:var(--signal);
+    box-shadow:0 0 0 4px rgba(95,227,163,0.12);
+  }
+  .stage-head{
+    display:flex; align-items:baseline; gap:14px; flex-wrap:wrap;
+    margin-bottom:8px;
+  }
+  .stage-idx{font-family:var(--mono); font-size:12px; color:var(--text-dim); letter-spacing:0.06em;}
+  .stage h3{
+    font-family:var(--display); font-weight:700; font-size:23px;
+    color:var(--text-hi); text-transform:uppercase; letter-spacing:0.01em;
+  }
+  .stage p{font-size:14.5px; color:var(--text-lo); max-width:600px;}
+  .stage .stage-tech{
+    font-family:var(--mono); font-size:11.5px; color:var(--signal);
+    margin-top:8px; display:inline-block;
+  }
+
+  /* ===== STACK GRID ===== */
+  .stack-grid{
+    display:grid;
+    grid-template-columns:repeat(4, 1fr);
+    gap:1px;
+    background:var(--line);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .stack-card{
+    background:var(--panel);
+    padding:26px 22px;
+    transition:background 0.25s ease, transform 0.25s ease;
+  }
+  .stack-card:hover{background:var(--panel-2); transform:translateY(-3px);}
+  .stack-card .k{
+    font-family:var(--mono); font-size:10.5px; letter-spacing:0.08em;
+    text-transform:uppercase; color:var(--text-dim); margin-bottom:14px; display:block;
+  }
+  .stack-card h4{
+    font-family:var(--display); font-size:18px; font-weight:700;
+    color:var(--text-hi); text-transform:uppercase; margin-bottom:10px;
+  }
+  .stack-card ul{list-style:none;}
+  .stack-card li{
+    font-size:13px; color:var(--text-lo);
+    padding:5px 0; border-top:1px solid var(--line);
+  }
+  .stack-card li:first-child{border-top:none;}
+
+  /* ===== FOLDER TREE ===== */
+  .tree-panel{
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .tree-top{
+    padding:13px 18px; border-bottom:1px solid var(--line);
+    background:var(--panel-2);
+    font-family:var(--mono); font-size:11.5px; color:var(--text-dim); letter-spacing:0.05em;
+  }
+  .tree-body{
+    padding:24px 26px;
+    font-family:var(--mono); font-size:13px;
+    color:var(--text-lo);
+    overflow-x:auto;
+    line-height:1.85;
+    white-space:pre;
+  }
+  .tree-body .dir{color:var(--text-hi);}
+  .tree-body .comment{color:var(--text-dim);}
+  .tree-body .py{color:#9fe9c4;}
+  .tree-body .ts{color:#ffab8c;}
+
+  /* ===== SETUP / TERMINAL ===== */
+  .setup-grid{
+    display:grid;
+    grid-template-columns:0.85fr 1.15fr;
+    gap:24px;
+    align-items:start;
+  }
+  .req-list{list-style:none;}
+  .req-list li{
+    display:flex; gap:14px; padding:16px 0;
+    border-top:1px solid var(--line);
+  }
+  .req-list li:first-child{border-top:none;}
+  .req-num{font-family:var(--mono); font-size:12px; color:var(--flare); flex-shrink:0; padding-top:2px;}
+  .req-list h5{font-family:var(--body); font-size:14.5px; font-weight:600; color:var(--text-hi); margin-bottom:3px;}
+  .req-list p{font-size:13px; color:var(--text-lo);}
+  .req-list code{
+    font-family:var(--mono); font-size:11.5px; background:var(--panel-2);
+    padding:1px 6px; border-radius:4px; color:var(--signal);
+  }
+
+  .terminal{
+    background:#0d1110;
+    border:1px solid var(--line);
+    border-radius:10px;
+    overflow:hidden;
+  }
+  .terminal-top{
+    display:flex; align-items:center; gap:8px;
+    padding:11px 16px;
+    background:var(--panel-2);
+    border-bottom:1px solid var(--line);
+  }
+  .terminal-top span{width:9px; height:9px; border-radius:50%; background:var(--line);}
+  .terminal-top span:nth-child(1){background:#ff6a3d;}
+  .terminal-top span:nth-child(2){background:#e0c84f;}
+  .terminal-top span:nth-child(3){background:#5fe3a3;}
+  .terminal-title{font-family:var(--mono); font-size:11px; color:var(--text-dim); margin-left:6px;}
+  .terminal-body{padding:20px 22px; font-family:var(--mono); font-size:12.8px; line-height:2;}
+  .terminal-body .ln{color:var(--text-lo);}
+  .terminal-body .prompt{color:var(--signal); margin-right:8px;}
+  .terminal-body .out{color:var(--text-dim); display:block; padding-left:18px;}
+
+  /* ===== FOOTER CTA ===== */
+  .closer{
+    text-align:center;
+    padding:130px 0 110px;
+    position:relative;
+  }
+  .closer h2{
+    font-family:var(--display); font-weight:900;
+    font-size:clamp(34px, 5.6vw, 64px);
+    color:var(--text-hi); text-transform:uppercase;
+    line-height:1; margin:18px 0 26px;
+  }
+  .closer p{color:var(--text-lo); max-width:480px; margin:0 auto 34px; font-size:15.5px;}
+  .closer-ctas{display:flex; gap:14px; justify-content:center; flex-wrap:wrap;}
+
+  footer{
+    border-top:1px solid var(--line);
+    padding:28px 0;
+  }
+  .footer-row{
+    display:flex; align-items:center; justify-content:space-between;
+    flex-wrap:wrap; gap:14px;
+  }
+  .footer-row p{font-family:var(--mono); font-size:11.5px; color:var(--text-dim);}
+  .footer-row a{font-family:var(--mono); font-size:11.5px; color:var(--text-lo); text-decoration:none; transition:color 0.2s;}
+  .footer-row a:hover{color:var(--signal);}
+
+  @media (max-width:880px){
+    .hero-grid{grid-template-columns:1fr; gap:48px;}
+    .stack-grid{grid-template-columns:repeat(2,1fr);}
+    .setup-grid{grid-template-columns:1fr;}
+    .navlinks{display:none;}
+    .hero{padding-top:140px;}
+  }
+  @media (max-width:520px){
+    .stack-grid{grid-template-columns:1fr;}
+    .wrap{padding:0 20px;}
+    nav{padding:14px 20px;}
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <nav>
+    <a href="#top" class="brand"><span class="brand-mark"></span>RESCUE AI</a>
+    <div class="navlinks">
+      <a href="#pipeline">Pipeline</a>
+      <a href="#stack">Stack</a>
+      <a href="#structure">Structure</a>
+      <a href="#setup">Setup</a>
+    </div>
+    <a class="nav-cta" href="https://github.com/sourya2007/rescue-ai" target="_blank" rel="noopener">
+      ★ View on GitHub
+    </a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- ============ HERO ============ -->
+  <section class="hero">
+    <div class="wrap">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow"><span class="dot"></span>OFF-GRID CAPABLE · LOCAL INFERENCE ONLY</div>
+          <h1>Clear signal<br>when it<br>matters <span class="accent">most.</span></h1>
+          <p class="lede">RESCUE AI turns garbled, static-choked radio traffic into <strong>clean audio, attributed transcripts, and structured tactical intel</strong> — entirely on local hardware, with no cloud dependency.</p>
+          <div class="hero-ctas">
+            <a class="btn btn-primary" href="https://github.com/sourya2007/rescue-ai" target="_blank" rel="noopener">Get the source →</a>
+            <a class="btn btn-ghost" href="#pipeline">See the pipeline</a>
+          </div>
+          <div class="hero-stats">
+            <div class="stat"><div class="num">4-STAGE</div><div class="lbl">processing pipeline</div></div>
+            <div class="stat"><div class="num">100% LOCAL</div><div class="lbl">no data leaves the device</div></div>
+            <div class="stat"><div class="num">REACT + FASTAPI</div><div class="lbl">dashboard &amp; engine</div></div>
+          </div>
+        </div>
+
+        <div class="console reveal" id="consoleCard">
+          <div class="console-top">
+            <div class="lights"><span></span><span></span><span></span></div>
+            <div class="console-label">CHANNEL_07 · DISPATCH/UNIT-12</div>
+          </div>
+          <div class="console-body">
+            <div class="console-row"><span class="tag live">RAW INPUT</span><span class="tag">SNR LOW</span></div>
+            <svg class="wave-svg" viewBox="0 0 400 64" id="noisyWave">
+              <polyline class="wave-noisy" fill="none" stroke-width="1.4" points=""></polyline>
+            </svg>
+
+            <div class="console-divider"></div>
+
+            <div class="console-row"><span class="tag">DSP CLEANED</span><span class="tag" style="color:var(--signal)">SNR +18dB</span></div>
+            <svg class="wave-svg" viewBox="0 0 400 64" id="cleanWave">
+              <polyline class="wave-clean" fill="none" stroke-width="1.6" points=""></polyline>
+            </svg>
+
+            <div class="console-divider"></div>
+
+            <div id="transcriptFeed">
+              <div class="transcript-line"><span class="who">DISPATCH</span><span>structure fire reported, two-twelve elm.</span></div>
+              <div class="transcript-line alert"><span class="who">UNIT-12</span><span>copy, smoke visible second floor, requesting backup<span class="cursor"></span></span></div>
+            </div>
+
+            <div class="console-tags" id="tagFeed">
+              <span class="pill danger">INCIDENT: FIRE</span>
+              <span class="pill danger">URGENCY: HIGH</span>
+              <span class="pill ok">LOCATION: 212 ELM ST</span>
+              <span class="pill ok">ACTION: DISPATCH BACKUP</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ PIPELINE ============ -->
+  <section id="pipeline">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow"><span class="dot"></span>HOW IT WORKS</div>
+        <h2>One signal,<br>four transformations.</h2>
+        <p>Every transmission moves through the same fixed sequence — from raw static to a structured, actionable record dispatch can act on immediately.</p>
+      </div>
+
+      <div class="pipeline">
+        <div class="stage reveal">
+          <div class="stage-num"></div>
+          <div class="stage-head"><span class="stage-idx">STAGE 01</span><h3>DSP Cleaning</h3></div>
+          <p>Persistent white noise and static are stripped from the raw transmission using STFT-based spectral subtraction, isolating the speech signal before it ever reaches a model.</p>
+          <span class="stage-tech">spectral subtraction · short-time fourier transform</span>
+        </div>
+
+        <div class="stage reveal">
+          <div class="stage-num"></div>
+          <div class="stage-head"><span class="stage-idx">STAGE 02</span><h3>Speech-to-Text</h3></div>
+          <p>Cleaned audio is transcribed locally — no transmission ever touches a third-party API, which matters when the content is an active incident.</p>
+          <span class="stage-tech">OpenAI Whisper · local inference</span>
+        </div>
+
+        <div class="stage reveal">
+          <div class="stage-num"></div>
+          <div class="stage-head"><span class="stage-idx">STAGE 03</span><h3>Speaker Diarization</h3></div>
+          <p>The transcript is segmented by speaker — separating Dispatch from Unit, and Unit from Unit — so the resulting log reads like an actual exchange, not a wall of text.</p>
+          <span class="stage-tech">Pyannote 3.1</span>
+        </div>
+
+        <div class="stage reveal">
+          <div class="stage-num"></div>
+          <div class="stage-head"><span class="stage-idx">STAGE 04</span><h3>Tactical Extraction</h3></div>
+          <p>A local LLM reads the attributed transcript and extracts an incident profile, location and hazard metadata, an urgency rating, and concrete action items for first responders.</p>
+          <span class="stage-tech">Ollama · Llama 3.2:3b</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STACK ============ -->
+  <section id="stack">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow"><span class="dot"></span>TECHNICAL STACK</div>
+        <h2>Built to run<br>without a network.</h2>
+        <p>Every layer of the stack was chosen to keep inference on-device — the dashboard degrades gracefully, never the mission.</p>
+      </div>
+
+      <div class="stack-grid reveal">
+        <div class="stack-card">
+          <span class="k">Frontend</span>
+          <h4>Dashboard</h4>
+          <ul>
+            <li>React 18 + Vite</li>
+            <li>Tailwind CSS</li>
+            <li>Lucide Icons</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <span class="k">Audio Engine</span>
+          <h4>Real-Time DSP</h4>
+          <ul>
+            <li>WebAudio API</li>
+            <li>Live waterfall spectrogram</li>
+            <li>Client-side FFT fallback</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <span class="k">Backend</span>
+          <h4>Processing API</h4>
+          <ul>
+            <li>FastAPI (Python)</li>
+            <li>Uvicorn</li>
+            <li>Unified launcher script</li>
+          </ul>
+        </div>
+        <div class="stack-card">
+          <span class="k">AI Models</span>
+          <h4>Local Inference</h4>
+          <ul>
+            <li>Whisper (small)</li>
+            <li>Pyannote 3.1</li>
+            <li>Llama 3.2:3b via Ollama</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ STRUCTURE ============ -->
+  <section id="structure">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow"><span class="dot"></span>REPOSITORY LAYOUT</div>
+        <h2>Frontend and engine,<br>cleanly split.</h2>
+        <p>The React dashboard and the Python processing engine live side by side, joined by a single launcher.</p>
+      </div>
+
+      <div class="tree-panel reveal">
+        <div class="tree-top">rescue-ai/</div>
+        <div class="tree-body"><span class="dir">backend/</span>                     <span class="comment"># Python FastAPI backend</span>
+├── <span class="py">denoise_pipeline.py</span>      <span class="comment"># DSP logic, Whisper &amp; Pyannote integration</span>
+└── <span class="py">ollama_insights.py</span>       <span class="comment"># Structured AI extraction via Ollama</span>
+
+<span class="dir">src/</span>                          <span class="comment"># React (Vite) frontend</span>
+├── <span class="dir">components/</span>              <span class="comment"># UI components, waterfall spectrograms</span>
+├── <span class="dir">utils/</span>
+│   ├── <span class="ts">audioDsp.ts</span>           <span class="comment"># Client-side fallback DSP (FFT / filters)</span>
+│   └── <span class="ts">localEmergencyNlp.ts</span>  <span class="comment"># Client-side regex-based NLP fallback</span>
+└── <span class="ts">App.tsx</span>                   <span class="comment"># Main dashboard &amp; orchestration logic</span>
+
+<span class="py">backend.py</span>                       <span class="comment"># Unified launcher — starts front &amp; back together</span>
+<span class="comment">package.json · requirements.txt</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SETUP ============ -->
+  <section id="setup">
+    <div class="wrap">
+      <div class="section-head reveal">
+        <div class="eyebrow"><span class="dot"></span>SETUP &amp; DEPLOYMENT</div>
+        <h2>Running in<br>under five steps.</h2>
+        <p>Two runtimes, one launcher. The dashboard and the AI engine start together from a single command.</p>
+      </div>
+
+      <div class="setup-grid">
+        <ul class="req-list reveal">
+          <li>
+            <span class="req-num">01</span>
+            <div><h5>Node.js &amp; npm</h5><p>Runs the React dashboard.</p></div>
+          </li>
+          <li>
+            <span class="req-num">02</span>
+            <div><h5>Python 3.10+</h5><p>Runs the AI processing pipeline.</p></div>
+          </li>
+          <li>
+            <span class="req-num">03</span>
+            <div><h5>Ollama</h5><p>Install, then pull <code>llama3.2:3b</code> for local tactical extraction.</p></div>
+          </li>
+          <li>
+            <span class="req-num">04</span>
+            <div><h5>Hugging Face token</h5><p>Needed for <code>pyannote/speaker-diarization-3.1</code> — accept the model terms first.</p></div>
+          </li>
+        </ul>
+
+        <div class="terminal reveal">
+          <div class="terminal-top">
+            <span></span><span></span><span></span>
+            <span class="terminal-title">terminal — rescue-ai</span>
+          </div>
+          <div class="terminal-body">
+<div class="ln"><span class="prompt">$</span>git clone https://github.com/sourya2007/rescue-ai.git &amp;&amp; cd rescue-ai</div>
+<div class="ln"><span class="prompt">$</span>python -m venv .venv &amp;&amp; source .venv/bin/activate</div>
+<div class="ln"><span class="prompt">$</span>pip install -r requirements.txt &amp;&amp; npm install</div>
+<div class="ln"><span class="prompt">$</span>export HF_TOKEN="your_token_here"</div>
+<div class="ln"><span class="prompt">$</span>python backend.py</div>
+<span class="out">→ Dashboard  http://localhost:5173</span>
+<span class="out">→ API Server http://127.0.0.1:8000</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ CLOSER ============ -->
+  <section class="closer">
+    <div class="wrap">
+      <div class="eyebrow" style="justify-content:center;"><span class="dot"></span>NO SIGNAL LEFT BEHIND</div>
+      <h2 class="reveal">Built for the moment<br>the network drops.</h2>
+      <p class="reveal">If the Python backend isn't running, the dashboard falls back to browser-based DSP and regex NLP automatically — degraded, never dark.</p>
+      <div class="closer-ctas reveal">
+        <a class="btn btn-primary" href="https://github.com/sourya2007/rescue-ai" target="_blank" rel="noopener">Explore the repository →</a>
+        <a class="btn btn-ghost" href="https://github.com/sourya2007/rescue-ai/issues" target="_blank" rel="noopener">Report an issue</a>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap footer-row">
+    <p>RESCUE AI — Radio Enhancement &amp; Speech Clarification for Urgent Emergencies</p>
+    <a href="https://github.com/sourya2007/rescue-ai" target="_blank" rel="noopener">github.com/sourya2007/rescue-ai</a>
+  </div>
+</footer>
+
+<script>
+  // ---- Waveform generation: noisy -> clean, drawn once on load ----
+  function buildPoints(amp, noise, seed){
+    let pts = [];
+    let s = seed;
+    function rand(){ s = (s * 9301 + 49297) % 233280; return s / 233280; }
+    for(let x = 0; x <= 400; x += 4){
+      let base = Math.sin(x * 0.045) * amp + Math.sin(x * 0.11) * (amp * 0.4);
+      let n = (rand() - 0.5) * noise;
+      let y = 32 - base - n;
+      pts.push(x + ',' + y);
+    }
+    return pts.join(' ');
+  }
+
+  document.getElementById('noisyWave').querySelector('polyline')
+    .setAttribute('points', buildPoints(8, 26, 42));
+  document.getElementById('cleanWave').querySelector('polyline')
+    .setAttribute('points', buildPoints(16, 2, 42));
+
+  // ---- Scroll reveal ----
+  const revealEls = document.querySelectorAll('.reveal, .stage');
+  const io = new IntersectionObserver((entries) => {
+    entries.forEach(e => { if(e.isIntersecting){ e.target.classList.add('in'); } });
+  }, { threshold: 0.18 });
+  revealEls.forEach(el => io.observe(el));
+
+  // ---- Console transcript & tag stagger on load ----
+  window.addEventListener('DOMContentLoaded', () => {
+    document.querySelectorAll('#transcriptFeed .transcript-line').forEach((el, i) => {
+      el.style.animationDelay = (0.3 + i * 0.45) + 's';
+    });
+    document.querySelectorAll('#tagFeed .pill').forEach((el, i) => {
+      el.style.animationDelay = (1.3 + i * 0.18) + 's';
+    });
+  });
+</script>
+
+</body>
+</html>

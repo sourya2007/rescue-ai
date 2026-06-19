@@ -1,0 +1,6 @@
+{
+  "name": "RESCUE AI",
+  "description": "Radio Enhancement and Speech Clarification for Urgent Emergencies. An interactive environment to design, benchmark, and run dual-stage mathematical denoising (Bandpass filtering & Spectral subtraction) coupled with AI Speech-to-Text pipelines and real-time audio visualization.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

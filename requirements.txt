@@ -1,0 +1,13 @@
+fastapi
+uvicorn
+python-multipart
+pydantic
+ollama
+torch
+torchvision
+torchaudio
+openai-whisper
+pyannote.audio
+numpy
+scipy
+soundfile
