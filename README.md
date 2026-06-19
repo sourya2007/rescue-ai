@@ -15,7 +15,7 @@ The system employs a multi-stage pipeline to transform noisy radio audio into ac
 
 1.  **DSP Cleaning (Spectral Subtraction):** Removes persistent white noise and static using STFT-based magnitude subtraction.
 2.  **Speech-to-Text (Whisper):** Transcribes audio using OpenAI's Whisper model (running locally).
-3.  **Speaker Diarization (Pyannote):** Identifies different speakers (e.g., Dispatch vs. Unit) and segments the transcript.
+3.  **Speaker Diarization (Pyannote):** Identifies different speakers (e.g., 911 Dispatcher vs. Speaker) and segments the transcript.
 4.  **AI Consultation (Ollama/Llama 3.2):** A local LLM analyzes the transcript to extract:
     *   **Incident Profile:** (Fire, Medical, Security, etc.)
     *   **Tactical Metadata:** Location, Hazards, and Urgency levels.
